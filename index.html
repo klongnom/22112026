@@ -64,7 +64,7 @@ input,select,textarea{font:inherit}
 .icon-btn{background:none;border:0;padding:2px 4px;border-radius:7px;color:#98a0b6;line-height:1;font-size:13px}
 .icon-btn:hover{background:#eceef8;color:var(--brand)}
 .cat-row .children{display:none}
-.main{flex:1;min-width:0;padding:20px 26px 80px;max-width:1240px;width:100%}
+.main{flex:1;min-width:0;padding:20px 26px 80px;width:100%}
 body.modal-open{overflow:hidden;touch-action:none}
 .topbar{display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap}
 .menu-btn{display:none;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 11px}
@@ -140,12 +140,12 @@ input:focus,select:focus,textarea:focus{border-color:#c3bffd;background:#fff;box
 .empty .big{font-size:42px;margin-bottom:8px}
 
 /* ---------- review ---------- */
-.review-wrap{max-width:620px;margin:0 auto}
+.review-wrap{max-width:760px;margin:0 auto}
 .rev-progress{display:flex;align-items:center;gap:10px;margin-bottom:12px;font-size:12.5px;color:var(--muted)}
 .bar{flex:1;height:7px;background:#e7eaf4;border-radius:999px;overflow:hidden}
 .bar i{display:block;height:100%;background:linear-gradient(90deg,#4f46e5,#8b7bff);border-radius:999px;transition:.3s}
-.flashcard{background:#fff;border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow);overflow:hidden}
-.flashcard .hero{aspect-ratio:16/10;background:linear-gradient(135deg,#eef1fb,#e7f3ee);display:grid;place-items:center;overflow:hidden;position:relative}
+.flashcard{background:#fff;border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow)}
+.flashcard .hero{aspect-ratio:16/10;max-height:360px;background:linear-gradient(135deg,#eef1fb,#e7f3ee);display:grid;place-items:center;overflow:hidden;position:relative;border-radius:21px 21px 0 0}
 .flashcard .hero img{width:100%;height:100%;object-fit:cover}
 .flashcard .hero.noimg{aspect-ratio:auto;height:104px;background:linear-gradient(135deg,#eef1fb,#e7f3ee)}
 .flashcard .hero.noimg .ph{font-size:36px;opacity:.6}
@@ -376,11 +376,15 @@ body.sb-open .sb-overlay{opacity:1;pointer-events:auto}
     backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:13px;box-shadow:0 8px 24px rgba(30,41,59,.15)}
   .rev-actions .btn{min-width:0;min-height:46px;font-size:12px;padding:8px 4px}
   .rev-actions .btn small{display:block;font-size:9.5px}
+  /* ปุ่มเฉลย: ตรึงไว้เหนือแถบล่างเสมอ ไม่ต้องเลื่อนหามือ */
+  .reveal-bar{position:sticky;bottom:76px;z-index:30;padding:7px;background:rgba(247,248,253,.96);
+    backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:13px;box-shadow:0 8px 24px rgba(30,41,59,.15)}
+  .reveal-bar .btn{min-height:48px;font-size:15px}
 }
 @media(max-width:380px){
   .flashcard .hero{height:132px}
   .review-tools{grid-template-columns:auto 1fr}
-  .review-tools .speak-btn{grid-row:span 3}
+  .review-tools .speak-btn{grid-row:span 4}
   .flashcard .cont{padding:12px 10px}
 }
 /* หน้าจัดการหมวดหมู่แบบ responsive */
@@ -633,6 +637,7 @@ function defaultState() {
       desiredRetention: 90,           // เป้าหมายจำได้ (%)
       newPerDay: 20,
       reviewsPerDay: 200,
+      starBonus: 10,           // บัตรดาวที่ยังไม่ถึงกำหนด ถูกดึงเข้าซ้อมเสริมต่อรอบ (0 = ปิด)
       leechThreshold: 8,
       burySiblings: true
     }
@@ -646,6 +651,7 @@ const ui = {
   filterCat: null,
   query: '',
   showHidden: false,
+  starOnly: false, // กรองเฉพาะบัตรที่ติดดาว
   session: null,   // {ids:[], i:0, done:0, again:0, correct:0}
   voiceOverride: '',  // เสียงที่เลือกชั่วคราวในหน้าทบทวน
   revealed: false,
@@ -1642,7 +1648,7 @@ function viewDashboard() {
         <thead><tr><th>คำ</th><th>หมวด</th><th>ขั้น</th><th>กำหนดทบทวน</th><th></th></tr></thead>
         <tbody>${soon.map(c => `
           <tr>
-            <td><b>${cw(c.word)}</b><div class="tiny muted">${cr(c.readThai)}</div></td>
+            <td><b>${cw(c.word)}</b>${c.star ? ' ⭐' : ''}<div class="tiny muted">${cr(c.readThai)}</div></td>
             <td class="tiny">${esc(catPath(c.catId))}</td>
             <td><span class="pill ${(c.step || 0) >= 7 ? 'ok' : ''}">${c.step ? 'ขั้น ' + c.step : 'ใหม่'}</span></td>
             <td class="tiny">${dueText(c.due)}<div class="muted">${thaiDate(c.due)}</div></td>
@@ -1678,13 +1684,14 @@ function viewTable() {
     const cls = n <= 0 ? 'danger' : n <= 3 ? 'warn' : 'ok';
     return `<tr>
       <td style="width:52px">${imgSrc(c) ? `<img src="${imgSrc(c)}" referrerpolicy="no-referrer" loading="lazy" style="width:44px;height:44px;border-radius:9px;object-fit:cover" alt="">` : `<div style="width:44px;height:44px;border-radius:9px;background:#eef1fb;display:grid;place-items:center">${placeholderEmoji(c)}</div>`}</td>
-      <td><b>${cw(c.word)}</b>${c.leech ? ' <span class="pill danger">🩹 คำยาก</span>' : ''}${c.write ? ' <span title="มีข้อความในช่องเขียน">✍️</span>' : ''}<div class="tiny muted">${cr(c.readThai)} ${c.readEn ? '· ' + esc(c.readEn) : ''}</div></td>
+      <td><b>${cw(c.word)}</b>${c.star ? ' <span title="ติดดาว">⭐</span>' : ''}${c.leech ? ' <span class="pill danger">🩹 คำยาก</span>' : ''}${c.write ? ' <span title="มีข้อความในช่องเขียน">✍️</span>' : ''}<div class="tiny muted">${cr(c.readThai)} ${c.readEn ? '· ' + esc(c.readEn) : ''}</div></td>
       <td class="tiny">${esc(catPath(c.catId))}</td>
       <td><span class="dots">${INTERVALS.map((_, k) => `<i class="${k < (c.step || 0) ? 'on' : ''}"></i>`).join('')}</span></td>
       <td class="tiny">${c.step ? STEP_LABEL[c.step] : 'ยังไม่เริ่ม'}</td>
       <td class="tiny"><span class="pill ${cls}">${dueText(c.due)}</span><div class="muted">${thaiDate(c.due)}</div></td>
       <td class="tiny muted" title="${c.updated ? new Date(c.updated).toLocaleString('th-TH') : 'ยังไม่เคยแก้ไข'}">${c.updated ? thaiDate(new Date(c.updated).toISOString().slice(0, 10)) : '—'}</td>
       <td style="text-align:right;white-space:nowrap">
+        <button class="btn sm" onclick="toggleStar('${c.id}')" title="${c.star ? 'เลิกติดดาว' : 'ติดดาว — ให้ออกบ่อยขึ้น'}" style="${c.star ? 'color:#f59e0b' : ''}">${c.star ? '⭐' : '☆'}</button>
         <button class="btn sm" onclick="speakCard('${c.id}')" title="ฟังเสียง">🔊</button>
         <button class="btn sm" onclick="openCardModal('${c.id}')">แก้ไข</button>
       </td>
@@ -1722,6 +1729,7 @@ function viewTable() {
 function viewCards() {
   const q = ui.query.trim().toLowerCase();
   let list = state.cards.filter(c => ui.showHidden || !isHiddenCat(c.catId));
+  if (ui.starOnly) list = list.filter(c => !!c.star);
   if (ui.filterCat) { const ids = catIdsIn(ui.filterCat); list = list.filter(c => ids.includes(c.catId)); }
   if (q) list = list.filter(c => (c.word + ' ' + c.readThai + ' ' + c.readEn + ' ' + c.mean + ' ' + (c.book || '')).toLowerCase().includes(q));
   list = list.sort((a, b) => (a.due || '').localeCompare(b.due || ''));
@@ -1734,6 +1742,7 @@ function viewCards() {
       <div class="thumb">
         ${src ? `<img src="${src}" alt="${esc(c.word)}" referrerpolicy="no-referrer" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'ph',textContent:'🖼️'}))">` : `<div class="ph">${placeholderEmoji(c)}</div>`}
         <span class="due pill ${cls}">${n <= 0 ? 'ทบทวนวันนี้' : 'อีก ' + n + ' วัน'}</span>
+        ${c.star ? '<span class="pill warn" style="position:absolute;left:7px;top:7px" title="ติดดาว">⭐</span>' : ''}
       </div>
       <div class="body">
         <div class="word">${cw(c.word)}</div>
@@ -1744,6 +1753,7 @@ function viewCards() {
           <button class="icon-btn" style="font-size:15px" onclick="speakCard('${c.id}')" title="ฟังเสียง (${esc(profileOf(c).name)})">🔊</button>
           <span class="dots">${INTERVALS.map((_, k) => `<i class="${k < (c.step || 0) ? 'on' : ''}"></i>`).join('')}</span>
           <div class="spacer"></div>
+          <button class="icon-btn" style="font-size:15px;${c.star ? 'color:#f59e0b' : ''}" onclick="toggleStar('${c.id}')" title="${c.star ? 'เลิกติดดาว' : 'ติดดาว — ให้ออกบ่อยขึ้น'}">${c.star ? '⭐' : '☆'}</button>
           <button class="icon-btn" onclick="openCardModal('${c.id}')" title="แก้ไข">✏️</button>
           <button class="icon-btn" onclick="deleteCard('${c.id}')" title="ลบ">🗑️</button>
         </div>
@@ -1762,6 +1772,9 @@ function viewCards() {
       </select>
       <button class="btn ${ui.showHidden ? 'primary' : ''}" onclick="ui.showHidden=!ui.showHidden;render()">
         ${ui.showHidden ? '👁️ แสดงหมวดที่ซ่อนอยู่' : '🙈 ซ่อนหมวดอยู่'}
+      </button>
+      <button class="btn ${ui.starOnly ? 'primary' : ''}" onclick="ui.starOnly=!ui.starOnly;render()">
+        ${ui.starOnly ? '⭐ แสดงเฉพาะที่ติดดาว' : '☆ กรองที่ติดดาว'}
       </button>
       <button class="btn" onclick="openBulkModal()">⌨️ เพิ่มหลายคำ</button>
     </div>
@@ -1783,19 +1796,36 @@ function onSearch(v) {
 }
 
 /* ---------------- ทบทวน ---------------- */
+function starBonusList(excludeIds) {
+  /* ⭐ บัตรที่ติดดาวแต่ยังไม่ถึงกำหนด — ดึงเข้าซ้อมเสริมให้ออกบ่อยขึ้น (จำกัดสูงสุดต่อรอบ) */
+  const cap = state.settings.starBonus == null ? 10 : Number(state.settings.starBonus);
+  if (!(cap > 0)) return [];
+  const today = todayStr();
+  return visibleCards()
+    .filter(c => !c.suspended && c.star && (!c.due || c.due > today) && !(excludeIds && excludeIds.has(c.id)))
+    .sort((a, b) => (a.due || '').localeCompare(b.due || ''))
+    .slice(0, cap);
+}
 function buildQueue(limit) {
   const st = state.settings;
   const today = todayStr();
+  const byStar = (a, b) => (b.star ? 1 : 0) - (a.star ? 1 : 0);
   let due = visibleCards().filter(c => !c.suspended && (!c.due || c.due <= today));
-  /* แบบ Anki: งานค้าง/โอกาสจำต่ำมาก่อน, บัตรใหม่ถูกจำกัดต่อวัน */
+  /* แบบ Anki: งานค้าง/โอกาสจำต่ำมาก่อน (⭐ บัตรดาวขึ้นก่อนเสมอ), บัตรใหม่ถูกจำกัดต่อวัน */
   const reviews = due.filter(c => (c.reps || 0) > 0).sort((a,b) => {
+    const s = byStar(a, b);
+    if (s) return s;
     const oa = daysBetween(a.due || today, today), ob = daysBetween(b.due || today, today);
     return ob - oa || retrievability(a) - retrievability(b);
   }).slice(0, Number(st.reviewsPerDay || 200));
-  const fresh = due.filter(c => !(c.reps || 0)).slice(0, Number(st.newPerDay || 20));
+  const fresh = due.filter(c => !(c.reps || 0)).sort(byStar).slice(0, st.newPerDay == null ? 20 : Number(st.newPerDay));
   let pool = reviews.concat(fresh);
-  if (!pool.length) pool = visibleCards().filter(c=>!c.suspended).slice().sort((a,b)=>(a.due||'').localeCompare(b.due||'')).slice(0, limit || 10);
+  /* ไม่มีบัตรถึงกำหนดจริง ๆ → สุ่มจากที่ใกล้ถึงกำหนด (ดันบัตรดาวขึ้นหน้า) */
+  if (!pool.length && !due.length) pool = visibleCards().filter(c=>!c.suspended).slice().sort((a,b)=>byStar(a,b) || (a.due||'').localeCompare(b.due||'')).slice(0, limit || 10);
   if (limit) pool = pool.slice(0, Math.max(limit, reviews.length));
+  /* ⭐ ต่อท้ายด้วยบัตรดาวที่ยังไม่ถึงกำหนด (ใส่หลังจำกัดจำนวนแล้ว จะไม่โดนตัด) */
+  const inPool = new Set(pool.map(c => c.id));
+  pool = pool.concat(starBonusList(inPool));
   return { ids: pool.map(c=>c.id), i:0, correct:0, again:0, total:pool.length };
 }
 function daysBetween(a,b) { return Math.max(0, Math.round((new Date(b+'T12:00:00')-new Date(a+'T12:00:00'))/86400000)); }
@@ -1872,13 +1902,14 @@ function viewReview() {
         ${src ? `<img src="${src}" alt="${esc(card.word)}" referrerpolicy="no-referrer" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'ph',textContent:'🖼️'}))">` : `<div class="ph">${placeholderEmoji(card)}</div>`}
       </div>
       <div class="cont">
-        <div class="word ${/[\u1000-\u109F]/.test(card.word) ? 'mm' : ''}">${cw(card.word)} ${card.leech ? '<span class="pill danger" title="คำยาก: ลืมซ้ำหลายครั้ง ควรแก้บัตรให้สั้นและชัด">🩹 คำยาก</span>' : ''}</div>
+        <div class="word ${/[\u1000-\u109F]/.test(card.word) ? 'mm' : ''}">${cw(card.word)} ${card.star ? '<span class="pill warn" title="ติดดาว — ถูกดึงขึ้นมาบ่อยขึ้น">⭐</span>' : ''} ${card.leech ? '<span class="pill danger" title="คำยาก: ลืมซ้ำหลายครั้ง ควรแก้บัตรให้สั้นและชัด">🩹 คำยาก</span>' : ''}</div>
         ${hideRead ? '' : `<div class="read">คำอ่านไทย <b>${cr(card.readThai) || '—'}</b> ${card.readEn ? ' · ' + esc(card.readEn) : ''}</div>`}
         <div class="review-tools" style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap">
           <button class="speak-btn" onclick="playCardAudio(state.cards.find(c=>c.id==='${card.id}'))" title="ฟังเสียง">🔊</button>
           <button class="btn sm" onclick="playCardAudio(state.cards.find(c=>c.id==='${card.id}'))">ฟังอีกครั้ง</button>
           <button class="btn sm" onclick="playCardAudio(state.cards.find(c=>c.id==='${card.id}'),0.5)" title="ฟังแบบช้า 50%">🐢 ฟังช้า</button>
           <div class="spacer"></div>
+          <button class="btn sm ghost" onclick="toggleStar('${card.id}')" title="${card.star ? 'เลิกติดดาว' : 'ติดดาว — ให้ออกบ่อยขึ้น'}" style="${card.star ? 'color:#f59e0b;font-weight:700' : ''}">${card.star ? '⭐ ติดดาวแล้ว' : '☆ ติดดาว'}</button>
           <button class="btn sm ghost review-color-help" onclick="openColorHelp()" title="อธิบายความหมายของสี">🎨 อธิบายสี</button>
           <button class="btn sm ghost" onclick="state.settings.hideReadings=!state.settings.hideReadings;saveState();render()">
             ${hideRead ? '👁️ แสดงคำอ่าน' : '🙈 ซ่อนคำอ่าน'}
@@ -1905,7 +1936,7 @@ function viewReview() {
               ขั้นปัจจุบัน: ${card.step ? card.step + '/7 (' + STEP_LABEL[card.step] + ')' : 'ยังไม่เริ่ม'} · ทบทวนแล้ว ${card.reps} ครั้ง
             </div>
           </div>` : `
-          <div style="margin-top:16px">
+          <div class="reveal-bar" style="margin-top:16px">
             <button class="btn primary block" style="padding:14px" onclick="revealAnswer()">เฉลยคำตอบ (Space)</button>
           </div>`}
       </div>
@@ -2148,7 +2179,11 @@ function answer(quality) { // Anki: 0 Again, 1 Hard, 2 Good, 3 Easy
   const ses = ui.session;
   const card = state.cards.find(c => c.id === ses.ids[ses.i]);
   if (card) {
-    if (state.settings.scheduler === 'anki') {
+    /* ⭐ บัตรดาวที่ถูกดึงเข้าซ้อมก่อนถึงกำหนด: ถ้ายังจำได้ (quality >= 1) ให้คงกำหนดเดิมไว้ ไม่เลื่อนออก */
+    const earlyKeep = !!card.due && card.due > todayStr() && quality >= 1;
+    if (earlyKeep) {
+      // จำได้ → คงขั้น/ช่วงเวลา/กำหนดทบทวนเดิมทั้งหมด (จะได้กลับมาบ่อยตามเดิม)
+    } else if (state.settings.scheduler === 'anki') {
       const x = ankiIntervals(card);
       const days = [x.again, x.hard, x.good, x.easy][quality] || 1;
       card.ease = Math.max(1.3, Math.min(3.0, Number(card.ease || 2.5) + [-.20,-.15,0,.15][quality]));
@@ -2176,6 +2211,14 @@ function answer(quality) { // Anki: 0 Again, 1 Hard, 2 Good, 3 Easy
 function speakCard(id) {
   const c = state.cards.find(x => x.id === id);
   if (c) playCardAudio(c);
+}
+function toggleStar(id) {
+  const c = state.cards.find(x => x.id === id);
+  if (!c) return;
+  c.star = !c.star;
+  c.updated = new Date().toISOString();
+  saveState(); render();
+  toast(c.star ? '⭐ ติดดาวแล้ว — ใบนี้จะถูกดึงขึ้นมาบ่อยขึ้นในรอบทบทวน' : 'เลิกติดดาวแล้ว');
 }
 
 /* ---------------- จัดการหมวดหมู่ ---------------- */
@@ -2320,6 +2363,7 @@ function viewSettings() {
           ${[80,85,90,93,95,97].map(n=>`<option value="${n}" ${Number(s.desiredRetention||90)===n?'selected':''}>${n}%${n===90?' — สมดุล (แนะนำ)':''}</option>`).join('')}</select></div>
         <div class="field"><label>บัตรใหม่/วัน</label><input type="number" min="0" max="200" value="${s.newPerDay||20}" onchange="state.settings.newPerDay=Math.max(0,Number(this.value));saveState()"></div>
         <div class="field"><label>ทบทวนสูงสุด/วัน</label><input type="number" min="1" max="9999" value="${s.reviewsPerDay||200}" onchange="state.settings.reviewsPerDay=Math.max(1,Number(this.value));saveState()"></div>
+        <div class="field"><label>บัตรดาวเสริม/รอบ</label><input type="number" min="0" max="200" value="${s.starBonus==null?10:s.starBonus}" onchange="state.settings.starBonus=Math.max(0,Number(this.value));saveState()"><div class="hint">จำนวนบัตรที่ติดดาวแต่ยังไม่ถึงกำหนด ที่จะถูกดึงเข้าซ้อมเสริมต่อรอบ (0 = ปิด)</div></div>
         <div class="field"><label>คำยากซ้ำ (Leech)</label><input type="number" min="3" max="20" value="${s.leechThreshold||8}" onchange="state.settings.leechThreshold=Math.max(3,Number(this.value));saveState()"><div class="hint">ลืมครบจำนวนนี้ ระบบติดป้ายคำยากไว้ให้แก้บัตร</div></div>
       </div>
       <div class="hint">หลักสำคัญ: ทำบัตรที่ครบกำหนดก่อน · ถ้ามีงานค้างให้หยุดเพิ่มบัตรใหม่ · กด “ยาก” เฉพาะเมื่อยังจำได้แต่ใช้แรงมาก; ถ้าจำไม่ได้ให้กด “อีกครั้ง” · 90% เป็นค่าเริ่มต้นสมดุล งานจะเพิ่มเร็วเมื่อเข้าใกล้ 97%</div>
@@ -3218,6 +3262,12 @@ function openCardModal(id, presetCat, preset) {
         <div class="field"><label>✍️ ช่องเขียนของคำนี้ (เขียนเองได้ ไม่บังคับ)</label>
           <textarea id="f-write" rows="3" placeholder="เขียนคำซ้ำ ๆ / จดจุดที่จำยาก / แต่งประโยค">${esc(c ? (c.write || '') : '')}</textarea></div>
 
+        <div class="field"><label>⭐ ดาว</label>
+          <label style="display:flex;gap:8px;align-items:center;font-size:13.5px;cursor:pointer">
+            <input type="checkbox" id="f-star" ${c && c.star ? 'checked' : ''} style="width:auto">
+            ติดดาวใบนี้ — ระบบจะดึงขึ้นมาบ่อยขึ้นในรอบทบทวน (ขึ้นก่อนเสมอ + ซ้อมเสริมแม้ยังไม่ถึงกำหนด)
+          </label></div>
+
         ${c ? `<hr class="sep">
         <div class="row2">
           <div class="field"><label>ขั้นการทบทวน (0–7)</label>
@@ -3590,11 +3640,13 @@ function saveCard() {
   const v = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
   const word = v('f-word');
   if (!word) { toast('กรุณาใส่คำศัพท์'); return; }
+  const starEl = document.getElementById('f-star');
   const data = {
     catId: v('f-cat'), word,
     readThai: v('f-rt'), readEn: v('f-re'), mean: v('f-mean'),
     lang: v('f-lang'), img: tmpImg, audio: tmpAudio, voice: v('f-voice'),
     src: v('f-src'), book: v('f-book'), note: v('f-note'), write: v('f-write'),
+    star: starEl ? !!starEl.checked : false,
     audioVoice: tmpAudio ? (tmpAudioVoice || null) : null
   };
   data.updated = new Date().toISOString();
@@ -3708,11 +3760,11 @@ function exportData() {
   toast('ดาวน์โหลดไฟล์สำรองแล้ว');
 }
 function exportCSV() {
-  const head = ['คำศัพท์', 'คำอ่านไทย', 'คำอ่านอังกฤษ', 'ความหมาย', 'หมวด', 'ขั้น', 'ช่วงวัน', 'กำหนดทบทวน', 'ทบทวนแล้ว(ครั้ง)', 'ที่มา', 'หนังสือ', 'โน้ต', 'ช่องเขียน', 'อัปเดตล่าสุด'];
+  const head = ['คำศัพท์', 'คำอ่านไทย', 'คำอ่านอังกฤษ', 'ความหมาย', 'หมวด', 'ขั้น', 'ช่วงวัน', 'กำหนดทบทวน', 'ทบทวนแล้ว(ครั้ง)', 'ที่มา', 'หนังสือ', 'โน้ต', 'ช่องเขียน', 'ดาว', 'อัปเดตล่าสุด'];
   const rows = state.cards.map(c => [
     c.word, c.readThai, c.readEn, c.mean, catPath(c.catId),
     c.step || 0, c.step ? INTERVALS[c.step - 1] : 0, c.due || '', c.reps || 0, c.src || '', c.book || '', c.note || '',
-    c.write || '', c.updated ? new Date(c.updated).toLocaleString('th-TH') : ''
+    c.write || '', c.star ? '⭐' : '', c.updated ? new Date(c.updated).toLocaleString('th-TH') : ''
   ]);
   const csv = '\uFEFF' + [head, ...rows].map(r => r.map(x => '"' + String(x == null ? '' : x).replace(/"/g, '""') + '"').join(',')).join('\r\n');
   download('flashcards-' + todayStr() + '.csv', csv, 'text/csv;charset=utf-8');
